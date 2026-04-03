@@ -1,11 +1,19 @@
 function monitorDailyExpirations() {
+  console.log("start")
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getActiveSheet(); 
   const data = sheet.getDataRange().getValues();
+  // console.log(data)
+  let email_list=[];
+  for (i=1;i<data.length;i++){
+    if(data[i][7])
+      email_list.push(data[i][7])
+  }
+  // console.log(email_list)
   
   const emailSubStart = "Crane GP/Safety Monitoring System:";
   
-  // Adjusted indentation to ensure flush-left formatting in the final email
   const emailTextEnd = `
 -------------------------------------------------
 This message was sent to you from the Crane GP/Safety Monitoring System, FMM-Infrastructure, Tata Steel LTD.
@@ -22,52 +30,69 @@ Tata Steel LTD.`;
 
   for (let i = 1; i < data.length; i++) {
     let row = data[i];
-    let dateColD = row[3]; 
-    let dateColE = row[4]; 
-    let rawEmail = row[7]; 
-
-    if (!rawEmail) continue; 
-    
-    let recipient = String(rawEmail).split(',').map(e => e.trim()).join(',');
+    let dateColD = row[3]; // GP VALID
+    let dateColE = row[4]; // SAFETY CHECK
+    //let rawEmail = row[7]; // NOTIFY EMAIL LIST (Shifted to Index 6)
 
     let datesToCheck = [
-      { date: dateColD, colName: headers[3] || "Column D" },
-      { date: dateColE, colName: headers[4] || "Column E" }
+      { date: dateColD, colName: headers[3] || "GP VALID" },
+      { date: dateColE, colName: headers[4] || "SAFETY CHECK" }
     ];
 
     datesToCheck.forEach(item => {
+      let targetDate = null;
+      // Robust parsing to filter out "N/A" or malformed strings
       if (item.date instanceof Date) {
-        item.date.setHours(0,0,0,0);
+        targetDate = item.date;
+      } else if (item.date !== "N/A") {
+         let parsed = new Date(item.date);
+         if (!isNaN(parsed.getTime())) targetDate = parsed;
+      }
+
+      if (targetDate) {
+        targetDate.setHours(0,0,0,0);
         
-        let diffMs = item.date.getTime() - today.getTime();
+        let diffMs = targetDate.getTime() - today.getTime();
         let diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-        
+      
         let alertType = "";
         let subject = "";
         let introMessage = "";
-
         if (diffDays <= 0) {
           alertType = "EXPIRED";
-          subject = `${emailSubStart} 🚨 CRITICAL: ${item.colName} EXPIRED`;
-          introMessage = `The date for ${item.colName} HAS EXPIRED as of ${item.date.toDateString()}. Immediate action required.`;
+          subject = `${emailSubStart} CRITICAL: ${item.colName} EXPIRED`;
+          introMessage = `The date for ${item.colName} HAS EXPIRED as of ${targetDate.toDateString()}. Immediate action required.`;
         } else if (diffDays > 0 && diffDays <= 7) {
           alertType = "EXPIRING SOON";
-          subject = `${emailSubStart} ⚠️ WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
-          introMessage = `The date for ${item.colName} is expiring soon on ${item.date.toDateString()}.`;
+          subject = `${emailSubStart} WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
+          introMessage = `The date for ${item.colName} is expiring soon on ${targetDate.toDateString()}.`;
         }
 
         if (alertType !== "") {
           let rowDetails = headers.map((header, index) => {
-             let cellValue = row[index] instanceof Date ? row[index].toDateString() : row[index];
-             return `${header}: ${cellValue}`;
+            let cellValue="";
+            if(header.toUpperCase()=="EMAIL" || !header || header.toUpperCase()=="STATUS"){ 
+              return "";
+            }
+            // else if(header.toUpperCase()=="GATEPASS" || header.toUpperCase()=="SAFETY CHECK"){
+            //   cellValue = row[index].toDateString();
+            // }
+            else{
+             cellValue = row[index];
+            }
+            return `${header}: ${cellValue}`;
           }).join('\n');
           
-          // Assembled payload: Intro -> Details -> System Date -> Signature block
           let body = `${introMessage}\n\n=== RECORD DETAILS ===\n${rowDetails}\n\nSystem Date: ${new Date().toDateString()}\n${emailTextEnd}`;
+          email_list.forEach(recipient=>{
+            //MailApp.sendEmail(recipient, subject, body);
+            //console.log("email sent to",recipient);
+            console.log(subject,body)
+          })
           
-          MailApp.sendEmail(recipient, subject, body);
         }
       }
     });
   }
+  console.log("end")
 }
