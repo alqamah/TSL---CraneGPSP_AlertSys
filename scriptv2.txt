@@ -1,0 +1,103 @@
+function monitorDailyExpirations() {
+  console.log("start")
+
+  const emailSubStart = "Crane GP/Safety Monitoring System:";
+  const emailTextEnd = `
+-------------------------------------------------
+This message was sent to you from the Crane GP/Safety Monitoring System, FMM-Infrastructure, Tata Steel LTD.
+If you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. 
+
+Thanks and Regards,
+Alqama H. (832659)
+Tata Steel LTD.`;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet(); 
+  const data = sheet.getDataRange().getValues();
+
+  let final_email="";
+  let sep_text="*********************";
+
+  let email_list=[];
+  for (let i=1;i<data.length;i++){
+    if(data[i][7])
+      email_list.push(data[i][7])
+  }
+  // console.log(email_list)
+  
+
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const headers = data[0];
+
+  for (let i = 1; i < data.length; i++) {
+    let row = data[i];
+    let dateColD = row[3]; // GP VALID
+    let dateColE = row[4]; // SAFETY CHECK
+
+    let datesToCheck = [
+      { date: dateColD, colName: headers[3] || "GP VALID" },
+      { date: dateColE, colName: headers[4] || "SAFETY CHECK" }
+    ];
+
+    datesToCheck.forEach(item => {
+      let targetDate = null;
+      // Robust parsing to filter out "N/A" or malformed strings
+      if (item.date instanceof Date) {
+        targetDate = item.date;
+      } else if (item.date !== "N/A") {
+         let parsed = new Date(item.date);
+         if (!isNaN(parsed.getTime())) targetDate = parsed;
+      }
+
+      if (targetDate) {
+        targetDate.setHours(0,0,0,0);
+        
+        let diffMs = targetDate.getTime() - today.getTime();
+        let diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      
+        let alertType = "";
+        let subject = "";
+        let introMessage = "";
+        if (diffDays <= 0) {
+          alertType = "EXPIRED";
+          subject = `CRITICAL: ${item.colName} EXPIRED`;
+          introMessage = `The date for ${item.colName} HAS EXPIRED as of ${targetDate.toDateString()}. Immediate action required.`;
+        } else if (diffDays > 0 && diffDays <= 7) {
+          alertType = "EXPIRING SOON";
+          subject = `WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
+          introMessage = `The date for ${item.colName} is expiring soon on ${targetDate.toDateString()}.`;
+        }
+
+        if (alertType !== "") {
+          let rowDetails = headers.map((header, index) => {
+            let cellValue="";
+            if(header.toUpperCase()=="EMAIL" || !header || header.toUpperCase()=="STATUS"){ 
+              return "";
+            }
+            // else if(header.toUpperCase()=="GATEPASS" || header.toUpperCase()=="SAFETY CHECK"){
+            //   cellValue = row[index].toDateString();
+            // }
+            else{
+             cellValue = row[index];
+            }
+            return `${header}: ${cellValue}`;
+          }).join('\n');
+          
+          let body = `${introMessage}\n\n=== RECORD DETAILS ===\n${rowDetails}`;
+          
+          final_email += `\n${subject}\n${body}\n${sep_text}`;
+          
+        }
+      }
+    });
+  }
+  final_email = emailSubStart + final_email + emailTextEnd; 
+  email_list.forEach(r=>{
+    MailApp.sendEmail(r, "CRANE GP/SP ALERT", final_email);
+  })
+  console.log(final_email)
+  console.log("end")
+}
