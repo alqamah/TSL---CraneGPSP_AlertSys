@@ -85,7 +85,8 @@ Tata Steel LTD.`;
           
           let body = `${introMessage}\n\n=== RECORD DETAILS ===\n${rowDetails}\n\nSystem Date: ${new Date().toDateString()}\n${emailTextEnd}`;
           email_list.forEach(recipient=>{
-            //MailApp.sendEmail(recipient, subject, body);
+
+            //MailApp.sendEmail(recipient, subject, body); //uncomment to send emails
             //console.log("email sent to",recipient);
             console.log(subject,body)
           })
