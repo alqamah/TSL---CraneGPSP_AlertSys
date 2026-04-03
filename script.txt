@@ -1,0 +1,73 @@
+function monitorDailyExpirations() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet(); 
+  const data = sheet.getDataRange().getValues();
+  
+  const emailSubStart = "Crane GP/Safety Monitoring System:";
+  
+  // Adjusted indentation to ensure flush-left formatting in the final email
+  const emailTextEnd = `
+-------------------------------------------------
+This message was sent to you from the Crane GP/Safety Monitoring System, FMM-Infrastructure, Tata Steel LTD.
+If you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. 
+
+Thanks and Regards,
+Alqama H. (832659)
+Tata Steel LTD.`;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const headers = data[0];
+
+  for (let i = 1; i < data.length; i++) {
+    let row = data[i];
+    let dateColD = row[3]; 
+    let dateColE = row[4]; 
+    let rawEmail = row[7]; 
+
+    if (!rawEmail) continue; 
+    
+    let recipient = String(rawEmail).split(',').map(e => e.trim()).join(',');
+
+    let datesToCheck = [
+      { date: dateColD, colName: headers[3] || "Column D" },
+      { date: dateColE, colName: headers[4] || "Column E" }
+    ];
+
+    datesToCheck.forEach(item => {
+      if (item.date instanceof Date) {
+        item.date.setHours(0,0,0,0);
+        
+        let diffMs = item.date.getTime() - today.getTime();
+        let diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        
+        let alertType = "";
+        let subject = "";
+        let introMessage = "";
+
+        if (diffDays <= 0) {
+          alertType = "EXPIRED";
+          subject = `${emailSubStart} 🚨 CRITICAL: ${item.colName} EXPIRED`;
+          introMessage = `The date for ${item.colName} HAS EXPIRED as of ${item.date.toDateString()}. Immediate action required.`;
+        } else if (diffDays > 0 && diffDays <= 7) {
+          alertType = "EXPIRING SOON";
+          subject = `${emailSubStart} ⚠️ WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
+          introMessage = `The date for ${item.colName} is expiring soon on ${item.date.toDateString()}.`;
+        }
+
+        if (alertType !== "") {
+          let rowDetails = headers.map((header, index) => {
+             let cellValue = row[index] instanceof Date ? row[index].toDateString() : row[index];
+             return `${header}: ${cellValue}`;
+          }).join('\n');
+          
+          // Assembled payload: Intro -> Details -> System Date -> Signature block
+          let body = `${introMessage}\n\n=== RECORD DETAILS ===\n${rowDetails}\n\nSystem Date: ${new Date().toDateString()}\n${emailTextEnd}`;
+          
+          MailApp.sendEmail(recipient, subject, body);
+        }
+      }
+    });
+  }
+}
