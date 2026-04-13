@@ -1,7 +1,7 @@
 function monitorDailyExpirations() {
   console.log("start")
-
-  const emailSubStart = "Crane GP/Safety Monitoring System:";
+  let ind=1;
+  const emailSubStart = `CRANE GP/SP ALERT:\n-------------------------------------------------\n`;
   const emailTextEnd = `
 -------------------------------------------------
 This message was sent to you from the Crane GP/Safety Monitoring System, FMM-Infrastructure, Tata Steel LTD.
@@ -64,11 +64,11 @@ Tata Steel LTD.`;
         if (diffDays <= 0) {
           alertType = "EXPIRED";
           subject = `CRITICAL: ${item.colName} EXPIRED`;
-          introMessage = `The date for ${item.colName} HAS EXPIRED as of ${targetDate.toDateString()}. Immediate action required.`;
+          // introMessage = `The date for ${item.colName} HAS EXPIRED as of ${targetDate.toDateString()}. Immediate action required.`;
         } else if (diffDays > 0 && diffDays <= 7) {
           alertType = "EXPIRING SOON";
           subject = `WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
-          introMessage = `The date for ${item.colName} is expiring soon on ${targetDate.toDateString()}.`;
+          // introMessage = `The date for ${item.colName} is expiring soon on ${targetDate.toDateString()}.`;
         }
 
         if (alertType !== "") {
@@ -86,7 +86,7 @@ Tata Steel LTD.`;
             return `${header}: ${cellValue}`;
           }).join('\n');
           
-          let body = `${introMessage}\n\n=== RECORD DETAILS ===\n${rowDetails}`;
+          let body = `${introMessage}\n=== RECORD DETAILS ===\n${rowDetails}`;
           
           final_email += `\n${subject}\n${body}\n${sep_text}`;
           
@@ -96,8 +96,9 @@ Tata Steel LTD.`;
   }
   final_email = emailSubStart + final_email + emailTextEnd; 
   email_list.forEach(r=>{
-    MailApp.sendEmail(r, "CRANE GP/SP ALERT", final_email);
+    MailApp.sendEmail(r, "Crane GP/SP Expiration Alert Notification -FMM Infra, TSL", final_email);
+    // console.log("mail sent to", r);
   })
-  console.log(final_email)
+  // console.log(final_email)
   console.log("end")
 }
