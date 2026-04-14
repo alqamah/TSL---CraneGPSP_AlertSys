@@ -1,32 +1,25 @@
 function monitorDailyExpirations() {
   console.log("start")
   let ind=1;
-  const emailSubStart = `CRANE GP/SP ALERT:\n-------------------------------------------------\n`;
-  const emailTextEnd = `
--------------------------------------------------
-This message was sent to you from the Crane GP/Safety Monitoring System, FMM-Infrastructure, Tata Steel LTD.
-If you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. 
-
-Thanks and Regards,
-Alqama H. (832659)
-Tata Steel LTD.`;
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getActiveSheet(); 
-  const data = sheet.getDataRange().getValues();
-
-  let final_email="";
-  let sep_text="*********************";
-
+  const email_col = 6;
   let email_list=[];
-  for (let i=1;i<data.length;i++){
-    if(data[i][7])
-      email_list.push(data[i][7])
-  }
-  // console.log(email_list)
-  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+//  const sheet = ss.getActiveSheet(); 
+  const sheet = ss.getSheetByName("main"); 
 
-  
+  const data = sheet.getDataRange().getValues();
+  let subject="ALERT: Crane GP/SC Expiration Notification -FMM Infra, TSL";
+  let sep_text=`-------------------------------------------------\n`;
+  let final_email="";
+  const emailSubStart = `ALERT FOR GATEPASS/SAFETY-CHECK EXPIRATION:\n${sep_text}`;
+  const emailTextEnd = `${sep_text}This message was sent to you from the Crane GatePass/SafetyCheck Monitoring System, FMM-Infrastructure, Tata Steel LTD.\nIf you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. \n\nThanks and Regards,\nAlqama H. (832659)\nTata Steel LTD.`;
+
+  for (let i=1;i<data.length;i++){
+    if(data[i][email_col])
+      email_list.push(data[i][email_col])
+  }
+  // console.log(email_list);
+    
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -88,7 +81,7 @@ Tata Steel LTD.`;
           
           let body = `${introMessage}\n=== RECORD DETAILS ===\n${rowDetails}`;
           
-          final_email += `\n${subject}\n${body}\n${sep_text}`;
+          final_email += `\n${subject}\n${body}`;
           
         }
       }
@@ -96,9 +89,9 @@ Tata Steel LTD.`;
   }
   final_email = emailSubStart + final_email + emailTextEnd; 
   email_list.forEach(r=>{
-    MailApp.sendEmail(r, "Crane GP/SP Expiration Alert Notification -FMM Infra, TSL", final_email);
-    // console.log("mail sent to", r);
+    // MailApp.sendEmail(r, subject, final_email);
+    console.log("mail sent to", r);
   })
-  // console.log(final_email)
+  console.log("FINAL OUTPUT:\n\n",final_email)
   console.log("end")
 }
