@@ -1,30 +1,38 @@
 function monitorDailyExpirations() {
-  console.log("start")
-  let ind=1;
-  const email_col = 6;
-  let email_list=[];
+  console.log("start");
+
+  // --- 1. Variable Declarations & Configuration ---
+  const EMAIL_COL = 6;
+  const SHEET_NAME = "main";
+  const SUBJECT_LINE = "ALERT: Crane GP/SC Expiration Notification -FMM Infra, TSL";
+  const SEP_TEXT = `-------------------------------------------------\n`;
+  
+  let email_list = [];
+  let final_email = "";
+  let item_index = 1;
+
+  // --- 2. Spreadsheet & Data Initialization ---
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-//  const sheet = ss.getActiveSheet(); 
-  const sheet = ss.getSheetByName("main"); 
-
+  const sheet = ss.getSheetByName(SHEET_NAME);
   const data = sheet.getDataRange().getValues();
-  let subject="ALERT: Crane GP/SC Expiration Notification -FMM Infra, TSL";
-  let sep_text=`-------------------------------------------------\n`;
-  let final_email="";
-  const emailSubStart = `ALERT FOR GATEPASS/SAFETY-CHECK EXPIRATION:\n${sep_text}`;
-  const emailTextEnd = `${sep_text}This message was sent to you from the Crane GatePass/SafetyCheck Monitoring System, FMM-Infrastructure, Tata Steel LTD.\nIf you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. \n\nThanks and Regards,\nAlqama H. (832659)\nTata Steel LTD.`;
+  const headers = data[0];
 
-  for (let i=1;i<data.length;i++){
-    if(data[i][email_col])
-      email_list.push(data[i][email_col])
-  }
-  // console.log(email_list);
-    
+  // --- 3. Email Template Constants ---
+  const emailSubStart = `ALERT FOR GATEPASS/SAFETY-CHECK EXPIRATION:\n${SEP_TEXT}`;
+  const emailTextEnd = `\n${SEP_TEXT}This message was sent to you from the Crane GatePass/SafetyCheck Monitoring System, FMM-Infrastructure, Tata Steel LTD.\nIf you want to update the GP/SP date or unsubscribe from this notification, please contact: alqama.hasnain@tatasteel.com or call +91-8050509173. \n\nThanks and Regards,\nAlqama H. (832659)\nTata Steel LTD.`;
+
+  // --- 4. Date Initialization ---
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const headers = data[0];
+  // --- 5. Extract Email Recipients ---
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][EMAIL_COL]) {
+      email_list.push(data[i][EMAIL_COL]);
+    }
+  }
 
+  // --- 6. Main Processing Loop ---
   for (let i = 1; i < data.length; i++) {
     let row = data[i];
     let dateColD = row[3]; // GP VALID
@@ -37,61 +45,73 @@ function monitorDailyExpirations() {
 
     datesToCheck.forEach(item => {
       let targetDate = null;
+
       // Robust parsing to filter out "N/A" or malformed strings
       if (item.date instanceof Date) {
         targetDate = item.date;
       } else if (item.date !== "N/A") {
-         let parsed = new Date(item.date);
-         if (!isNaN(parsed.getTime())) targetDate = parsed;
+        let parsed = new Date(item.date);
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
       }
 
+      // Check Expiration Logic
       if (targetDate) {
-        targetDate.setHours(0,0,0,0);
-        
+        targetDate.setHours(0, 0, 0, 0);
+
         let diffMs = targetDate.getTime() - today.getTime();
         let diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      
+
         let alertType = "";
-        let subject = "";
+        let alertSubject = "";
         let introMessage = "";
+
         if (diffDays <= 0) {
           alertType = "EXPIRED";
-          subject = `CRITICAL: ${item.colName} EXPIRED`;
-          // introMessage = `The date for ${item.colName} HAS EXPIRED as of ${targetDate.toDateString()}. Immediate action required.`;
+          alertSubject = `CRITICAL: ${item.colName} EXPIRED`;
         } else if (diffDays > 0 && diffDays <= 7) {
           alertType = "EXPIRING SOON";
-          subject = `WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
-          // introMessage = `The date for ${item.colName} is expiring soon on ${targetDate.toDateString()}.`;
+          alertSubject = `WARNING: ${item.colName} EXPIRING IN ${diffDays} DAYS`;
         }
 
+        // Build Record Details if expiration criteria met
         if (alertType !== "") {
           let rowDetails = headers.map((header, index) => {
-            let cellValue="";
-            if(header.toUpperCase()=="EMAIL" || !header || header.toUpperCase()=="STATUS"){ 
+            let cellValue = "";
+            let headUpper = header.toString().toUpperCase();
+
+            if (headUpper == "EMAIL" || !header || headUpper == "STATUS") {
               return "";
-            }
-            // else if(header.toUpperCase()=="GATEPASS" || header.toUpperCase()=="SAFETY CHECK"){
-            //   cellValue = row[index].toDateString();
-            // }
-            else{
-             cellValue = row[index];
+            } else {
+              cellValue = row[index];
             }
             return `${header}: ${cellValue}`;
-          }).join('\n');
-          
+          }).filter(String).join('\n'); // filter(String) removes empty entries from the Email/Status skips
+
           let body = `${introMessage}\n=== RECORD DETAILS ===\n${rowDetails}`;
-          
-          final_email += `\n${subject}\n${body}`;
-          
+
+          // Append to final email string
+          final_email += `\n${item_index}. ${alertSubject}\n${body}\n${SEP_TEXT}`;
+          item_index++;
         }
       }
     });
   }
-  final_email = emailSubStart + final_email + emailTextEnd; 
-  email_list.forEach(r=>{
-    // MailApp.sendEmail(r, subject, final_email);
-    console.log("mail sent to", r);
-  })
-  console.log("FINAL OUTPUT:\n\n",final_email)
-  console.log("end")
+
+  // --- 7. Final Email Assembly & Dispatch ---
+  if (final_email !== "") {
+    final_email = emailSubStart + final_email + emailTextEnd;
+
+    email_list.forEach(recipient => {
+      // MailApp.sendEmail(recipient, SUBJECT_LINE, final_email);
+      console.log("mail sent to", recipient);
+    });
+
+    console.log("FINAL OUTPUT:\n\n", final_email);
+  } else {
+    console.log("No expirations found today.");
+  }
+
+  console.log("end");
 }
